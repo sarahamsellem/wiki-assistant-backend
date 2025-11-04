@@ -2,6 +2,11 @@ import express from 'express';
 import cors from 'cors';
 import axios from "axios";
 import { updatePrompt } from './aiAgent';
+import multer from 'multer';
+import * as fs from 'fs';
+import pdfImport from 'pdf-parse';
+
+const pdf = pdfImport as unknown as (dataBuffer: Buffer) => Promise<{ text: string }>;
 
 const app = express();
 const port = 3000;
@@ -12,32 +17,23 @@ app.use(cors());
 app.get('/', (_req: any, res) => {
     res.send('Backend is running, root path does nothing yet.');
 });
-app.post('/upload-pdf', async (_req, res) => {
+
+
+// --- Configuration using diskStorage ---
+// Configure multer
+const upload = multer({
+    dest: 'uploads/',
+    limits: { fileSize: 10 * 1024 * 1024 } // 10MB
+});
+
+app.post('/upload-pdf', upload.single('file'), async (req, res) => {
     try {
-        // Example: syllabus text comes from frontend request body
-       const fileParsed = "Preliminaries\n" +
-           "Story\n" +
-           "Esploro customer base is widening and need to offer more multi language and multi-script functionality for the researcher profile.\n" +
-           "Requirements (Business, Technical, Security)\n" +
-           "Add new fields for Additional Name - can be added and edited by Researcher and by Admin\n" +
-           "Make existing fields translatable using existing functionality for labels and translations - admin will be able to enter the (using the globe - like in\n" +
-           "asset). Researcher interface is phase 2.\n" +
-           "Researcher description (about my research) separate Jira for August\n" +
-           "Display title\n" +
-           "KeywordsResearcher topics - in progress URM-244103 and URM-245719 - [RV] Add language to topic lookup API CLOSED\n" +
-           "(not currently in scope) Other free text fields that are not currently translatable (affiliation title, website title, website description, education\n" +
-           "field of study, qualification certificate, additional details, honors title)\n" +
-           "Provide configuration for multi-lingual/multi-script display on Profiles\n" +
-           "Add new fields and translations to SIS loader, API, CSV,\n" +
-           "Add new Additional Name fields to the CV (need to open a Jira for this)\n" +
-           "Index the additional name fields\n" +
-           "Flatten and map to analytics\n" +
-           "Assumptions/Restrictions/Related terms\n" +
-           "Additional name field can be used for non-latin scripts or for latin scripts\n" +
-           "Additional names are not used in Smart Harvesting - if the alternate name value should be used in SH then it will have to be entered in both fields -\n" +
-           "additional and variant\n" +
-           "The additional name field will have all configurable options available for other fields in the researcher – changes tracker, update through the profile, control\n" +
-           "over if it is editable"
+        //-------------------------Check file presence-------------------------
+        if (!req.file) {
+            res.status(400).json({error: 'No file uploaded.'});
+        }
+        const fileParsed = await getTextFromFile(req);
+
         // 1️⃣ Build the prompt dynamically
         const finalPrompt = updatePrompt(fileParsed);
 
@@ -68,6 +64,26 @@ app.post('/upload-pdf', async (_req, res) => {
     }
 });
 
+async function getTextFromFile(req: any){
+    try {
+        const filePath = req.file.path;
+
+        // Read PDF as buffer
+        const dataBuffer = fs.readFileSync(filePath) as Buffer;
+
+        // Extract text
+        const pdfData = await pdf(dataBuffer);
+
+        // Clean up: remove file after reading
+        fs.unlinkSync(filePath);
+
+        // Send back extracted text
+        return pdfData.text;
+    } catch (error) {
+        console.error('Error processing PDF:', error);
+        return "";
+    }
+}
 
 app.listen(port, () => {
     console.log(`Backend server running at http://localhost:${port}`);
