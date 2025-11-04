@@ -3,8 +3,8 @@ const multer = require('multer');
 const pdfParse = require('pdf-parse');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-const { extractTasksFromFSD } = require('./utils/aiAgent');
-const { createJiraIssues } = require('./utils/jiraApi');
+const { extractTasksFromFSD } = require('./src/aiAgent');
+const { createJiraIssues } = require('./src/jiraAPI');
 
 const app = express();
 app.use(bodyParser.json());
